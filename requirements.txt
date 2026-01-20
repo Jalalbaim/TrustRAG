@@ -1,0 +1,14 @@
+numpy
+pandas
+nltk
+requests
+tiktoken
+pypdf
+markdown
+chromadb
+rank-bm25
+transformers
+accelerate
+safetensors
+tqdm
+sentence-transformers
