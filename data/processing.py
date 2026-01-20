@@ -1,12 +1,6 @@
-"""
-Filters passages by theme keywords found in article_title or section_title.
-Performs reproducible sampling with a fixed seed.
-"""
-
 import os
 import re
 import json
-import random
 from typing import List, Dict
 
 from datasets import load_dataset
