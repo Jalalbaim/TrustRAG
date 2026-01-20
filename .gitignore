@@ -1,1 +1,5 @@
 .venv/
+
+data/wiki_snippets/
+
+processed/wiki_snippets_subset/
