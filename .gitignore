@@ -3,3 +3,12 @@
 data/wiki_snippets/
 
 processed/wiki_snippets_subset/
+
+index/__pycache__/
+
+index/bm25.pkl
+index/config.json
+index/faiss.index
+index/meta.parquet
+
+rag/__pycache__/

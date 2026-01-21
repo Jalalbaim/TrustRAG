@@ -1,0 +1,7 @@
+{
+  "created_utc": "2026-01-21T11:37:27Z",
+  "meta_parquet": "C:\\Users\\JALAL\\OneDrive\\Documents\\TrustRAG\\index\\meta.parquet",
+  "n_docs": 230610,
+  "bm25_class": "BM25Okapi",
+  "tokenizer": "simple_alnum_lower"
+}
