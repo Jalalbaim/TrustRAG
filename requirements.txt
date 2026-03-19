@@ -12,3 +12,7 @@ accelerate
 safetensors
 tqdm
 sentence-transformers
+# Generation + RAGAS evaluation
+ragas>=0.2
+langchain-ollama
+langchain-huggingface

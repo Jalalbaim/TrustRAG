@@ -3,13 +3,12 @@ import json
 import math
 import argparse
 import sys
-from typing import List, Dict, Any
+from typing import List, Any
 
 from tqdm import tqdm
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from rag.hybrid_retriever import load_all, retrieve_hybrid
-
 
 
 # python eval/eval_retrieval.py --dev ./eval/dev.jsonl --k 10
