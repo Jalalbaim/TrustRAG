@@ -12,3 +12,5 @@ index/faiss.index
 index/meta.parquet
 
 rag/__pycache__/
+
+CLAUDE.md

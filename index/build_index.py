@@ -1,7 +1,6 @@
 import os
 import json
 import time
-import argparse
 from datetime import datetime
 
 import numpy as np
@@ -24,7 +23,7 @@ def main():
 
     batch_Size = 256
     device = "gpu" if torch.cuda.is_available() else "cpu"
-    max_rows = 10
+    #max_rows = 10
     out_dir = "./index"
 
     # data 
