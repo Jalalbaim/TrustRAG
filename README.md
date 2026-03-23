@@ -40,13 +40,43 @@ python index/build_bm25.py
 
 ---
 
-## Usage
+## Interactive CLI — `main.py`
+
+The main entry point. Ask medical questions interactively and get grounded answers with per-query RAGAS metrics.
 
 ```bash
-# Hybrid retrieval demo (with before/after reranking output)
+# Full pipeline — retrieval + reranking + generation + metrics
+python main.py
+
+# More passages
+python main.py --k 10
+
+# Skip reranking (faster)
+python main.py --no-rerank
+
+# Skip RAGAS metrics (no Ollama needed for evaluation)
+python main.py --no-metrics
+
+# Custom Ollama URL
+python main.py --ollama-url http://localhost:11434
+```
+
+**Output per query:**
+1. Retrieved passages table — rank, pid, score, article/section title, latency
+2. Generated answer — grounded in retrieved context, latency
+3. RAGAS metrics — Faithfulness, Answer Relevancy, Context Precision for that query
+
+Requires `ollama serve` and `ollama pull gemma3:4b` for generation and metrics.
+
+---
+
+## Dev Scripts
+
+```bash
+# Hybrid retrieval demo — prints before/after reranking for a sample query
 python rag/hybrid_retriever.py
 
-# Full RAG pipeline (retrieval + reranking + generation)
+# Generator demo — single query end-to-end
 python rag/generator.py
 ```
 
