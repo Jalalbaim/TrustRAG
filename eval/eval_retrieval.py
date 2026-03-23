@@ -56,6 +56,17 @@ def main():
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--out", type=str, default="./eval/results_retrieval.json")
+    parser.add_argument(
+        "--rerank",
+        action="store_true",
+        help="Enable cross-encoder reranking; reports metrics both with and without reranking.",
+    )
+    parser.add_argument(
+        "--reranker-model",
+        type=str,
+        default=None,
+        help="Override the default cross-encoder model (optional).",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.dev):
@@ -63,6 +74,11 @@ def main():
 
     load_all(device=args.device)
     print("Loaded all models")
+
+    if args.rerank:
+        from rag.reranker import load_reranker, _DEFAULT_MODEL
+        model_name = args.reranker_model or _DEFAULT_MODEL
+        load_reranker(model_name)
 
     items = []
     with open(args.dev, "r", encoding="utf-8") as f:
@@ -81,6 +97,11 @@ def main():
     ndcg_sum = 0.0
     mrr_sum = 0.0
 
+    # rerank accumulators (only used when --rerank is set)
+    rr_recall_sum = 0.0
+    rr_ndcg_sum = 0.0
+    rr_mrr_sum = 0.0
+
     per_q = []
 
     print("Processing items...")
@@ -90,7 +111,9 @@ def main():
         gold = it.get("gold_pids", [])
         gold_set = set(gold)
 
-        hits = retrieve_hybrid(q, k=k, dense_k=50, bm25_k=50)
+        # Always retrieve a larger candidate set so the reranker has enough to work with
+        candidate_k = max(k, 20) if args.rerank else k
+        hits = retrieve_hybrid(q, k=candidate_k, dense_k=50, bm25_k=50)
         ranked_pids = [int(h["pid"]) if hasattr(h["pid"], 'item') else h["pid"] for h in hits]
 
         r = recall_at_k(ranked_pids, gold_set, k)
@@ -107,19 +130,38 @@ def main():
         else:
             ans_count += 1
 
-        per_q.append(
-            {
-                "qid": qid,
-                "recall@k": r,
-                "ndcg@k": n,
-                "mrr@k": m,
-                "gold_size": len(gold_set),
-                "top_pids": ranked_pids,
-            }
-        )
+        entry: dict = {
+            "qid": qid,
+            "recall@k": r,
+            "ndcg@k": n,
+            "mrr@k": m,
+            "gold_size": len(gold_set),
+            "top_pids": ranked_pids,
+        }
+
+        if args.rerank:
+            from rag.reranker import rerank as _rerank
+            rr_hits = _rerank(q, hits, top_k=k)
+            rr_pids = [int(h["pid"]) if hasattr(h["pid"], 'item') else h["pid"] for h in rr_hits]
+
+            rr_r = recall_at_k(rr_pids, gold_set, k)
+            rr_n = ndcg_at_k(rr_pids, gold_set, k)
+            rr_m = mrr_at_k(rr_pids, gold_set, k)
+
+            rr_recall_sum += rr_r
+            rr_ndcg_sum += rr_n
+            rr_mrr_sum += rr_m
+
+            entry["reranked_recall@k"] = rr_r
+            entry["reranked_ndcg@k"] = rr_n
+            entry["reranked_mrr@k"] = rr_m
+            entry["reranked_pids"] = rr_pids
+
+        per_q.append(entry)
 
     results = {
         "k": k,
+        "rerank": args.rerank,
         "n_total": total,
         "n_answerable": ans_count,
         "n_unanswerable": unans_count,
@@ -129,15 +171,25 @@ def main():
         "per_query": per_q,
     }
 
+    if args.rerank:
+        results["reranked_mean_recall@k"] = rr_recall_sum / max(total, 1)
+        results["reranked_mean_ndcg@k"] = rr_ndcg_sum / max(total, 1)
+        results["reranked_mean_mrr@k"] = rr_mrr_sum / max(total, 1)
+
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
 
     print(f"Saved: {args.out}")
-    print(f"Recall@{k}: {results['mean_recall@k']:.4f}")
-    print(f"NDCG@{k}  : {results['mean_ndcg@k']:.4f}")
-    print(f"MRR@{k}   : {results['mean_mrr@k']:.4f}")
-    print(f"Answerable: {ans_count} | Unanswerable: {unans_count}")
+    print(f"\n{'Metric':<12} {'Hybrid':>8}{'Reranked':>10}")
+    print("-" * 30)
+    rr_r_str = f"{results['reranked_mean_recall@k']:.4f}" if args.rerank else "  n/a"
+    rr_n_str = f"{results['reranked_mean_ndcg@k']:.4f}" if args.rerank else "  n/a"
+    rr_m_str = f"{results['reranked_mean_mrr@k']:.4f}" if args.rerank else "  n/a"
+    print(f"Recall@{k:<5} {results['mean_recall@k']:>8.4f}{rr_r_str:>10}")
+    print(f"NDCG@{k:<7} {results['mean_ndcg@k']:>8.4f}{rr_n_str:>10}")
+    print(f"MRR@{k:<8} {results['mean_mrr@k']:>8.4f}{rr_m_str:>10}")
+    print(f"\nAnswerable: {ans_count} | Unanswerable: {unans_count}")
 
 
 if __name__ == "__main__":

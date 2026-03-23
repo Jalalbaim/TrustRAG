@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
     load_all(device="cpu")
     q = "What is diabetes and how is it diagnosed?"
-    hits = retrieve_hybrid(q, k=3)
-    passages = [h["passage_text"] for h in hits]
-    answer = generate_answer(q, passages)
+    hits = retrieve_hybrid(q, k=10, rerank=True, reranker_top_k=3)
+    context_str = "\n\n---\n\n".join(h["passage_text"] for h in hits)
+    answer = generate_answer(q, context_str)
     print(f"Q: {q}\n\nA: {answer}")

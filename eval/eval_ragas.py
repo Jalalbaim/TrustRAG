@@ -55,6 +55,17 @@ def main():
         action="store_true",
         help="Skip unanswerable queries (gold_pids == [])",
     )
+    parser.add_argument(
+        "--rerank",
+        action="store_true",
+        help="Enable cross-encoder reranking after hybrid retrieval.",
+    )
+    parser.add_argument(
+        "--reranker-model",
+        type=str,
+        default=None,
+        help="Override the default cross-encoder model (optional).",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.dev):
@@ -63,6 +74,11 @@ def main():
     # ── Load retrieval stack ──────────────────────────────────────────────────
     print("Loading retrieval indexes...")
     load_all(device=args.device)
+
+    if args.rerank:
+        from rag.reranker import load_reranker, _DEFAULT_MODEL
+        model_name = args.reranker_model or _DEFAULT_MODEL
+        load_reranker(model_name)
 
     # ── Load queries ──────────────────────────────────────────────────────────
     items = []
@@ -85,7 +101,13 @@ def main():
     print(f"Retrieving k={args.k} passages and generating answers for {len(items)} queries...")
     for it in tqdm(items):
         q = it["question"]
-        hits = retrieve_hybrid(q, k=args.k)
+        if args.rerank:
+            from rag.reranker import rerank as _rerank
+            candidate_k = max(args.k, 20)
+            hits = retrieve_hybrid(q, k=candidate_k)
+            hits = _rerank(q, hits, top_k=args.k)
+        else:
+            hits = retrieve_hybrid(q, k=args.k)
         contexts = [h["passage_text"] for h in hits]
         context_str = "\n\n---\n\n".join(contexts)
         answer = generate_answer(q, context_str)
@@ -144,6 +166,7 @@ def main():
 
     output = {
         "k": args.k,
+        "rerank": args.rerank,
         "ragas_model": args.ragas_model,
         "ollama_url": args.ollama_url,
         "n_samples": len(samples),

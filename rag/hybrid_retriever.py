@@ -99,6 +99,8 @@ def retrieve_hybrid(
     alpha: float = 0.5,   # weight for dense
     beta: float = 0.5,    # weight for bm25
     min_score: Optional[float] = None,
+    rerank: bool = False,
+    reranker_top_k: int = 5,
 ) -> List[Dict]:
     
     if not _STATE["loaded"]:
@@ -171,14 +173,34 @@ def retrieve_hybrid(
                 "passage_text": row["passage_text"],
             }
         )
+    if rerank:
+        try:
+            from rag.reranker import rerank as _rerank
+        except ImportError:
+            from reranker import rerank as _rerank
+        results = _rerank(query, results, top_k=reranker_top_k)
+
     return results
 
 
 if __name__ == "__main__":
     load_all(device="cpu")
     q = "What is diabetes and how is it diagnosed?"
-    hits = retrieve_hybrid(q, k=5)
-    for i, h in enumerate(hits, 1):
+
+    print("=" * 60)
+    print("BEFORE reranking (hybrid fusion order)")
+    print("=" * 60)
+    hits_before = retrieve_hybrid(q, k=10)
+    for i, h in enumerate(hits_before, 1):
         print(f"\n#{i} score={h['score']:.4f} pid={h['pid']}")
         print(f"{h['article_title']} — {h['section_title']}")
-        print(h["passage_text"][:350], "...")
+        print(h["passage_text"][:200], "...")
+
+    print("\n" + "=" * 60)
+    print("AFTER reranking (cross-encoder order, top 5)")
+    print("=" * 60)
+    hits_after = retrieve_hybrid(q, k=10, rerank=True, reranker_top_k=5)
+    for i, h in enumerate(hits_after, 1):
+        print(f"\n#{i} reranker_score={h['reranker_score']:.4f} hybrid_score={h['score']:.4f} pid={h['pid']}")
+        print(f"{h['article_title']} — {h['section_title']}")
+        print(h["passage_text"][:200], "...")
