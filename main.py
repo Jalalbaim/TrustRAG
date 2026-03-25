@@ -182,8 +182,9 @@ def main():
         print()
         context_str = "\n\n---\n\n".join(h["passage_text"] for h in hits)
         t1 = time.perf_counter()
-        answer = generate_answer(query, context_str)
+        gen_result = generate_answer(query, context_str, passages=hits)
         gen_ms = (time.perf_counter() - t1) * 1000
+        answer = gen_result["answer"]
 
         print(f"  Answer  [{gen_ms:.0f} ms]")
         _hr("·")

@@ -66,6 +66,11 @@ def main():
         default=None,
         help="Override the default cross-encoder model (optional).",
     )
+    parser.add_argument(
+        "--no-faithfulness",
+        action="store_true",
+        help="Disable NLI-based faithfulness checking (faster, no DeBERTa model needed).",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.dev):
@@ -98,6 +103,9 @@ def main():
     samples = []
     per_q_meta = []
 
+    run_faithfulness = not args.no_faithfulness
+    nli_scores: list = []
+
     print(f"Retrieving k={args.k} passages and generating answers for {len(items)} queries...")
     for it in tqdm(items):
         q = it["question"]
@@ -110,7 +118,18 @@ def main():
             hits = retrieve_hybrid(q, k=args.k)
         contexts = [h["passage_text"] for h in hits]
         context_str = "\n\n---\n\n".join(contexts)
-        answer = generate_answer(q, context_str)
+        gen_result = generate_answer(q, context_str, passages=hits,
+                                     run_faithfulness_check=run_faithfulness)
+        answer = gen_result["answer"]
+        faith = gen_result["faithfulness"]
+
+        if faith is not None:
+            nli_scores.append(faith["score"])
+            print(
+                f"  [NLI faithfulness] qid={it['qid']}  "
+                f"score={faith['score']:.2%}  "
+                f"({'PASS' if faith['faithful'] else 'FAIL'})"
+            )
 
         samples.append(
             SingleTurnSample(
@@ -125,6 +144,7 @@ def main():
                 "question": q,
                 "answer": answer,
                 "retrieved_pids": [h["pid"] for h in hits],
+                "nli_faithfulness": faith,
             }
         )
 
@@ -164,6 +184,10 @@ def main():
         if col in df.columns
     }
 
+    nli_avg = round(sum(nli_scores) / len(nli_scores), 4) if nli_scores else None
+    if nli_avg is not None:
+        aggregate["nli_faithfulness_avg"] = nli_avg
+
     output = {
         "k": args.k,
         "rerank": args.rerank,
@@ -171,6 +195,7 @@ def main():
         "ollama_url": args.ollama_url,
         "n_samples": len(samples),
         "answerable_only": args.answerable_only,
+        "nli_faithfulness_avg": nli_avg,
         "aggregate": aggregate,
         "per_query": df.to_dict(orient="records"),
     }
